@@ -5,14 +5,8 @@ local RunService = game:GetService("RunService")
 local ModernUI = {}
 ModernUI.__index = ModernUI
 
-local THEMES = {
-    White = Color3.fromRGB(255, 255, 255),
-    Red = Color3.fromRGB(255, 70, 70),
-    Purple = Color3.fromRGB(170, 100, 255),
-    Yellow = Color3.fromRGB(255, 220, 70),
-    Green = Color3.fromRGB(70, 255, 150),
-    Blue = Color3.fromRGB(70, 150, 255)
-}
+-- ID tài sản độc quyền của bạn
+local EXCLUSIVE_ICON = "rbxassetid://88198148103261"
 
 local COLORS = {
     Background = Color3.fromRGB(8, 8, 12),
@@ -27,13 +21,12 @@ local COLORS = {
 
 local TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 local FAST_TWEEN = TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-local SLOW_TWEEN = TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 
+-- Hàm tạo background
 local function CreateImageBackground(parent, imageId, transparency)
     local bg = Instance.new("ImageLabel")
     bg.Name = "CustomBackground"
     bg.Size = UDim2.new(1, 0, 1, 0)
-    bg.Position = UDim2.new(0, 0, 0, 0)
     bg.BackgroundTransparency = 1
     bg.Image = imageId or ""
     bg.ImageTransparency = transparency or 0.3
@@ -44,23 +37,180 @@ local function CreateImageBackground(parent, imageId, transparency)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 16)
     corner.Parent = bg
-    
     return bg
 end
 
-local function AnimateIcon(imageLabel, frames, fps)
-    if type(frames) ~= "table" then
-        imageLabel.Image = frames
-        return
+function ModernUI.new(config)
+    local self = setmetatable({}, ModernUI)
+    
+    config = config or {}
+    self.Title = config.Title or "Modern UI"
+    self.SubTitle = config.SubTitle or "Exclusive Version"
+    self.Icon = EXCLUSIVE_ICON
+    self.MinimizeKey = Enum.KeyCode.LeftControl
+    
+    self.ScreenGui = Instance.new("ScreenGui")
+    self.ScreenGui.Name = "ModernUILibrary"
+    self.ScreenGui.ResetOnSpawn = false
+    self.ScreenGui.DisplayOrder = 999
+    
+    local screenSize = workspace.CurrentCamera.ViewportSize
+    local isMobile = screenSize.X < 600
+    local width = isMobile and screenSize.X * 0.9 or 580
+    local height = isMobile and screenSize.Y * 0.7 or 460
+    
+    self.MainFrame = Instance.new("Frame")
+    self.MainFrame.Name = "MainFrame"
+    self.MainFrame.Size = UDim2.new(0, width, 0, height)
+    self.MainFrame.Position = UDim2.new(0.5, -width/2, 0.5, -height/2)
+    self.MainFrame.BackgroundColor3 = COLORS.Background
+    self.MainFrame.Parent = self.ScreenGui
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 16)
+    UICorner.Parent = self.MainFrame
+    
+    self:CreateHeader()
+    self:CreateSidebar()
+    self:CreateContentArea()
+    self:MakeDraggable(self.MainFrame, self.MainFrame:FindFirstChild("Header"))
+    
+    self.ScreenGui.Parent = game:GetService("CoreGui")
+    
+    -- Tự động tạo nút bật/tắt với avatar độc quyền
+    if config.FloatingButton ~= false then
+        self:CreateFloatingButton()
     end
     
-    task.spawn(function()
-        local currentFrame = 1
-        while imageLabel and imageLabel.Parent do
-            imageLabel.Image = frames[currentFrame]
-            currentFrame = currentFrame + 1
-            if currentFrame > #frames then
-                currentFrame = 1
+    return self
+end
+
+function ModernUI:CreateFloatingButton()
+    local FloatingFrame = Instance.new("Frame")
+    FloatingFrame.Name = "FloatingButton"
+    FloatingFrame.Size = UDim2.new(0, 50, 0, 50)
+    FloatingFrame.Position = UDim2.new(0, 20, 0.5, -25)
+    FloatingFrame.BackgroundColor3 = COLORS.Surface
+    FloatingFrame.Parent = self.ScreenGui
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(1, 0)
+    UICorner.Parent = FloatingFrame
+    
+    local IconButton = Instance.new("ImageButton")
+    IconButton.Size = UDim2.new(0, 35, 0, 35)
+    IconButton.Position = UDim2.new(0.5, -17, 0.5, -17)
+    IconButton.BackgroundTransparency = 1
+    IconButton.Image = EXCLUSIVE_ICON -- Avatar độc quyền của bạn ở đây
+    IconButton.Parent = FloatingFrame
+    
+    IconButton.MouseButton1Click:Connect(function()
+        self:ToggleUI()
+    end)
+end
+
+function ModernUI:CreateHeader()
+    local Header = Instance.new("Frame")
+    Header.Name = "Header"
+    Header.Size = UDim2.new(1, 0, 0, 55)
+    Header.BackgroundTransparency = 1
+    Header.Parent = self.MainFrame
+    
+    local IconFrame = Instance.new("ImageLabel")
+    IconFrame.Name = "Icon"
+    IconFrame.Size = UDim2.new(0, 24, 0, 24)
+    IconFrame.Position = UDim2.new(0, 18, 0.5, -12)
+    IconFrame.BackgroundTransparency = 1
+    IconFrame.Image = EXCLUSIVE_ICON -- Icon trên menu chính
+    IconFrame.Parent = Header
+    
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Size = UDim2.new(0, 300, 0, 20)
+    TitleLabel.Position = UDim2.new(0, 55, 0, 12)
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Text = self.Title
+    TitleLabel.TextColor3 = COLORS.White
+    TitleLabel.Font = Enum.Font.GothamBold
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.Parent = Header
+
+    -- Nút đóng menu
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Size = UDim2.new(0, 30, 0, 30)
+    CloseButton.Position = UDim2.new(1, -42, 0.5, -15)
+    CloseButton.BackgroundColor3 = COLORS.Surface
+    CloseButton.Text = "X"
+    CloseButton.TextColor3 = COLORS.Gray
+    CloseButton.Parent = Header
+    
+    local CloseCorner = Instance.new("UICorner")
+    CloseCorner.CornerRadius = UDim.new(0, 8)
+    CloseCorner.Parent = CloseButton
+    
+    CloseButton.MouseButton1Click:Connect(function()
+        self:ToggleUI()
+    end)
+end
+
+function ModernUI:CreateSidebar()
+    local Sidebar = Instance.new("Frame")
+    Sidebar.Name = "Sidebar"
+    Sidebar.Size = UDim2.new(0, 140, 1, -70)
+    Sidebar.Position = UDim2.new(0, 16, 0, 62)
+    Sidebar.BackgroundTransparency = 1
+    Sidebar.Parent = self.MainFrame
+    
+    self.TabList = Instance.new("ScrollingFrame")
+    self.TabList.Size = UDim2.new(1, 0, 1, 0)
+    self.TabList.BackgroundTransparency = 1
+    self.TabList.ScrollBarThickness = 0
+    self.TabList.Parent = Sidebar
+    
+    local ListLayout = Instance.new("UIListLayout")
+    ListLayout.Padding = UDim.new(0, 6)
+    ListLayout.Parent = self.TabList
+end
+
+function ModernUI:CreateContentArea()
+    self.ContentArea = Instance.new("ScrollingFrame")
+    self.ContentArea.Size = UDim2.new(1, -188, 1, -82)
+    self.ContentArea.Position = UDim2.new(0, 172, 0, 62)
+    self.ContentArea.BackgroundTransparency = 1
+    self.ContentArea.ScrollBarThickness = 2
+    self.ContentArea.Parent = self.MainFrame
+    
+    local ListLayout = Instance.new("UIListLayout")
+    ListLayout.Padding = UDim.new(0, 10)
+    ListLayout.Parent = self.ContentArea
+end
+
+function ModernUI:MakeDraggable(frame, handle)
+    local dragging, dragInput, dragStart, startPos
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+end
+
+function ModernUI:ToggleUI()
+    self.MainFrame.Visible = not self.MainFrame.Visible
+end
+
+return ModernUI
             end
             task.wait(fps or 0.1)
         end
