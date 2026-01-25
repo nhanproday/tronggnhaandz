@@ -5,7 +5,7 @@ local RunService = game:GetService("RunService")
 local ModernUI = {}
 ModernUI.__index = ModernUI
 
--- ID tài sản độc quyền của bạn
+-- ID Độc quyền của bạn
 local EXCLUSIVE_ICON = "rbxassetid://88198148103261"
 
 local COLORS = {
@@ -19,32 +19,265 @@ local COLORS = {
     Accent = Color3.fromRGB(255, 255, 255)
 }
 
-local TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-local FAST_TWEEN = TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-
--- Hàm tạo background
-local function CreateImageBackground(parent, imageId, transparency)
-    local bg = Instance.new("ImageLabel")
-    bg.Name = "CustomBackground"
-    bg.Size = UDim2.new(1, 0, 1, 0)
-    bg.BackgroundTransparency = 1
-    bg.Image = imageId or ""
-    bg.ImageTransparency = transparency or 0.3
-    bg.ScaleType = Enum.ScaleType.Crop
-    bg.ZIndex = 0
-    bg.Parent = parent
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 16)
-    corner.Parent = bg
-    return bg
-end
-
 function ModernUI.new(config)
     local self = setmetatable({}, ModernUI)
     
     config = config or {}
     self.Title = config.Title or "Modern UI"
+    self.SubTitle = config.SubTitle or "Library"
+    self.Tabs = {}
+    self.CurrentTab = nil
+    
+    self.ScreenGui = Instance.new("ScreenGui")
+    self.ScreenGui.Name = "ModernUILibrary"
+    self.ScreenGui.ResetOnSpawn = false
+    self.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    self.ScreenGui.Parent = game:GetService("CoreGui")
+    
+    local width, height = 580, 460
+    if workspace.CurrentCamera.ViewportSize.X < 600 then
+        width, height = workspace.CurrentCamera.ViewportSize.X * 0.9, workspace.CurrentCamera.ViewportSize.Y * 0.8
+    end
+
+    self.MainFrame = Instance.new("Frame")
+    self.MainFrame.Name = "MainFrame"
+    self.MainFrame.Size = UDim2.new(0, width, 0, height)
+    self.MainFrame.Position = UDim2.new(0.5, -width/2, 0.5, -height/2)
+    self.MainFrame.BackgroundColor3 = COLORS.Background
+    self.MainFrame.BorderSizePixel = 0
+    self.MainFrame.Parent = self.ScreenGui
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 12)
+    UICorner.Parent = self.MainFrame
+
+    self:CreateHeader()
+    self:CreateSidebar()
+    self:CreateContentArea()
+    self:MakeDraggable(self.MainFrame, self.Header)
+    
+    if config.FloatingButton ~= false then
+        self:CreateFloatingButton()
+    end
+    
+    return self
+end
+
+-- HÀM TẠO NÚT BẬT TẮT CÓ THỂ KÉO DI CHUYỂN
+function ModernUI:CreateFloatingButton()
+    local FloatingBtn = Instance.new("ImageButton")
+    FloatingBtn.Name = "FloatingButton"
+    FloatingBtn.Size = UDim2.new(0, 50, 0, 50)
+    FloatingBtn.Position = UDim2.new(0, 20, 0.5, -25)
+    FloatingBtn.BackgroundColor3 = COLORS.Surface
+    FloatingBtn.Image = EXCLUSIVE_ICON
+    FloatingBtn.BorderSizePixel = 0
+    FloatingBtn.Parent = self.ScreenGui
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(1, 0)
+    UICorner.Parent = FloatingBtn
+
+    -- Logic Kéo di chuyển cho nút
+    local dragging, dragInput, dragStart, startPos
+    FloatingBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = FloatingBtn.Position
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            FloatingBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    FloatingBtn.MouseButton1Click:Connect(function()
+        self.MainFrame.Visible = not self.MainFrame.Visible
+    end)
+end
+
+function ModernUI:CreateHeader()
+    self.Header = Instance.new("Frame")
+    self.Header.Name = "Header"
+    self.Header.Size = UDim2.new(1, 0, 0, 50)
+    self.Header.BackgroundTransparency = 1
+    self.Header.Parent = self.MainFrame
+    
+    local Icon = Instance.new("ImageLabel")
+    Icon.Size = UDim2.new(0, 25, 0, 25)
+    Icon.Position = UDim2.new(0, 15, 0.5, -12)
+    Icon.Image = EXCLUSIVE_ICON
+    Icon.BackgroundTransparency = 1
+    Icon.Parent = self.Header
+    
+    local Title = Instance.new("TextLabel")
+    Title.Text = self.Title
+    Title.Position = UDim2.new(0, 50, 0.5, -10)
+    Title.TextColor3 = COLORS.White
+    Title.Font = Enum.Font.GothamBold
+    Title.TextSize = 16
+    Title.BackgroundTransparency = 1
+    Title.Parent = self.Header
+end
+
+function ModernUI:CreateSidebar()
+    self.Sidebar = Instance.new("ScrollingFrame")
+    self.Sidebar.Name = "Sidebar"
+    self.Sidebar.Size = UDim2.new(0, 150, 1, -60)
+    self.Sidebar.Position = UDim2.new(0, 10, 0, 50)
+    self.Sidebar.BackgroundTransparency = 1
+    self.Sidebar.ScrollBarThickness = 0
+    self.Sidebar.Parent = self.MainFrame
+    
+    local Layout = Instance.new("UIListLayout")
+    Layout.Padding = UDim.new(0, 5)
+    Layout.Parent = self.Sidebar
+end
+
+function ModernUI:CreateContentArea()
+    self.ContentArea = Instance.new("Frame")
+    self.ContentArea.Name = "ContentArea"
+    self.ContentArea.Size = UDim2.new(1, -170, 1, -60)
+    self.ContentArea.Position = UDim2.new(0, 160, 0, 50)
+    self.ContentArea.BackgroundTransparency = 1
+    self.ContentArea.Parent = self.MainFrame
+end
+
+-- CÁC HÀM QUAN TRỌNG ĐỂ KHÔNG MẤT TAB
+function ModernUI:CreateTab(config)
+    local Tab = {}
+    Tab.Name = config.Name or "Tab"
+    
+    local TabBtn = Instance.new("TextButton")
+    TabBtn.Size = UDim2.new(1, 0, 0, 35)
+    TabBtn.Text = Tab.Name
+    TabBtn.BackgroundColor3 = COLORS.Surface
+    TabBtn.TextColor3 = COLORS.Gray
+    TabBtn.Font = Enum.Font.Gotham
+    TabBtn.Parent = self.Sidebar
+    Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 6)
+
+    local Page = Instance.new("ScrollingFrame")
+    Page.Size = UDim2.new(1, 0, 1, 0)
+    Page.Visible = false
+    Page.BackgroundTransparency = 1
+    Page.ScrollBarThickness = 2
+    Page.Parent = self.ContentArea
+    Instance.new("UIListLayout", Page).Padding = UDim.new(0, 10)
+    
+    Tab.Page = Page
+    
+    TabBtn.MouseButton1Click:Connect(function()
+        for _, t in pairs(self.Tabs) do t.Page.Visible = false end
+        Page.Visible = true
+    end)
+    
+    if #self.Tabs == 0 then Page.Visible = true end
+    table.insert(self.Tabs, Tab)
+    return Tab
+end
+
+function ModernUI:AddSection(tab, config)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, 0, 0, 30)
+    Label.Text = "—— " .. config.Name .. " ——"
+    Label.TextColor3 = COLORS.Accent
+    Label.BackgroundTransparency = 1
+    Label.Font = Enum.Font.GothamBold
+    Label.Parent = tab.Page
+end
+
+function ModernUI:AddButton(tab, config)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, -10, 0, 35)
+    Btn.Text = config.Name
+    Btn.BackgroundColor3 = COLORS.SurfaceLight
+    Btn.TextColor3 = COLORS.White
+    Btn.Parent = tab.Page
+    Instance.new("UICorner", Btn)
+    Btn.MouseButton1Click:Connect(config.Callback)
+end
+
+function ModernUI:AddToggle(tab, config)
+    local State = config.Default or false
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, -10, 0, 35)
+    Btn.Text = config.Name .. ": " .. (State and "ON" or "OFF")
+    Btn.BackgroundColor3 = State and Color3.fromRGB(0, 150, 0) or COLORS.SurfaceLight
+    Btn.Parent = tab.Page
+    Instance.new("UICorner", Btn)
+    
+    Btn.MouseButton1Click:Connect(function()
+        State = not State
+        Btn.Text = config.Name .. ": " .. (State and "ON" or "OFF")
+        Btn.BackgroundColor3 = State and Color3.fromRGB(0, 150, 0) or COLORS.SurfaceLight
+        config.Callback(State)
+    end)
+end
+
+function ModernUI:AddDropdown(tab, config)
+    -- Hàm Dropdown rút gọn để tương thích code chính
+    local Drop = Instance.new("TextButton")
+    Drop.Size = UDim2.new(1,-10,0,35)
+    Drop.Text = config.Name .. ": " .. (config.Default or "None")
+    Drop.Parent = tab.Page
+    Instance.new("UICorner", Drop)
+    
+    return {
+        GetValue = function() return config.Default end,
+        UpdateOptions = function() end,
+        SetValue = function(v) Drop.Text = config.Name .. ": " .. v end
+    }
+end
+
+function ModernUI:AddSlider(tab, config)
+    local S = Instance.new("TextButton")
+    S.Size = UDim2.new(1,-10,0,35)
+    S.Text = config.Name .. ": " .. config.Default
+    S.Parent = tab.Page
+    return S
+end
+
+function ModernUI:Notify(config)
+    print("Notification: " .. config.Title .. " - " .. config.Body)
+end
+
+function ModernUI:ApplyAcrylic() end
+function ModernUI:ApplyTheme() end
+
+function ModernUI:MakeDraggable(frame, handle)
+    local dragging, dragInput, dragStart, startPos
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+return ModernUI
     self.SubTitle = config.SubTitle or "Exclusive Version"
     self.Icon = EXCLUSIVE_ICON
     self.MinimizeKey = Enum.KeyCode.LeftControl
